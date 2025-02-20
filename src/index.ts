@@ -1,12 +1,11 @@
+// src/index.ts
 import { registerPlugin } from '@capacitor/core';
 
-import type { ZPLPluginPlugin } from './definitions';
+import type { ZebraPrinterPlugin } from './definitions';
 
-const ZPLPlugin = registerPlugin<ZPLPluginPlugin>('ZPLPlugin', {
-  web: () => import('./web').then(m => new m.ZPLPluginWeb()),
+const ZebraPrinter = registerPlugin<ZebraPrinterPlugin>('ZebraPrinter', {
+  web: () => import('./web').then(m => new m.ZebraPrinterWeb()),
 });
 
 export * from './definitions';
-export { ZPLPlugin };
-
-
+export { ZebraPrinter };
