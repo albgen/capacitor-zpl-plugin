@@ -1,4 +1,4 @@
-package com.example.capacitor.zebraprinter;
+package com.zpl.capacitor;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
