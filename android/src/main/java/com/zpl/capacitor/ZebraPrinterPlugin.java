@@ -1,21 +1,39 @@
 package com.zpl.capacitor;
 
+import android.Manifest;
+
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+
 import com.zebra.sdk.comm.BluetoothConnection;
-import com.zebra.sdk.comm.Connection;
 import com.zebra.sdk.printer.discovery.BluetoothDiscoverer;
 import com.zebra.sdk.printer.discovery.DiscoveredPrinter;
+
+import com.zebra.sdk.comm.Connection;
 import com.zebra.sdk.printer.discovery.DiscoveryHandler;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@CapacitorPlugin(name = "ZebraPrinter")
+@CapacitorPlugin(
+        name = "ZebraPrinter",
+        permissions = {
+                @Permission(
+                        strings = {
+                                Manifest.permission.BLUETOOTH,
+                                Manifest.permission.BLUETOOTH_ADMIN,
+                                Manifest.permission.BLUETOOTH_SCAN,
+                                Manifest.permission.BLUETOOTH_CONNECT,
+                                Manifest.permission.BLUETOOTH_ADVERTISE
+                        }, alias = "BT"
+                )
+        }
+)
 public class ZebraPrinterPlugin extends Plugin {
 
     @PluginMethod
