@@ -1,5 +1,5 @@
 {
-  "name": "create-capacitor-plugin",
+  "name": "@albgen/capacitor-zpl-plugin",
   "version": "0.0.1",
   "description": "A plugin which facilitate the communication with ZPL Printers.",
   "main": "dist/plugin.cjs.js",
@@ -37,7 +37,7 @@
     "eslint": "eslint . --ext ts",
     "prettier": "prettier \"**/*.{css,html,ts,js,java}\"",
     "swiftlint": "node-swiftlint",
-    "docgen": "docgen --api ZPLPluginPlugin --output-readme README.md --output-json dist/docs.json",
+    "docgen": "docgen --api ZebraPrinterPlugin --output-readme README.md --output-json dist/docs.json",
     "build": "npm run clean && npm run docgen && tsc && rollup -c rollup.config.js",
     "clean": "rimraf ./dist",
     "watch": "tsc --watch",
@@ -74,5 +74,6 @@
     "android": {
       "src": "android"
     }
-  }
+  },
+  "homepage": "https://github.com/albgen/capacitor-zpl-plugin.git#readme"
 }
