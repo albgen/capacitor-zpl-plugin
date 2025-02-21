@@ -1,7 +1,9 @@
 package com.zpl.capacitor;
 
 import android.Manifest;
+import android.util.Log;
 
+import com.getcapacitor.Bridge;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -16,8 +18,10 @@ import com.zebra.sdk.printer.discovery.DiscoveredPrinter;
 
 import com.zebra.sdk.comm.Connection;
 import com.zebra.sdk.printer.discovery.DiscoveryHandler;
+import com.zpl.helper.DeviceConnection;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 @CapacitorPlugin(
@@ -35,6 +39,21 @@ import java.util.List;
         }
 )
 public class ZebraPrinterPlugin extends Plugin {
+
+    private static final Integer REQUEST_ENABLE_BT = 1;
+
+    // Reference to the Bridge
+    protected Bridge bridge;
+
+    // The same as defined in alias at @Permission
+    private static final String BT_ALIAS = "BT";
+    private static final String[] aliasesPermissions = new String[]{BT_ALIAS};
+    private final HashMap<String, DeviceConnection> connections = new HashMap<>();
+
+    @Override
+    public void load() {
+        Log.i("ZebraPrinterPlugin", "loading the plugin...");
+    }
 
     @PluginMethod
     public void getPrinters(PluginCall call) {
