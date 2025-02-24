@@ -10,7 +10,7 @@ export interface ZebraPrinterPlugin {
    * Prints ZPL code to a specified printer.
    * @param options Contains the ZPL code and printer ID.
    */
-  print(options: { zpl: string; printerId: string }): Promise<void>;
+  print(options: { type: string; id: string; zpl:string; address?: string; port?: string; action?: string; text: string, mmFeedPaper?:String, useEscPosAsterik?: boolean, initializeBeforeSend?: boolean, sendDelay?: string; chunkSize?: string}): Promise<void>;
 
   bluetoothHasPermissions(): Promise<{result: boolean;}>;
   bluetoothIsEnabled(): Promise<{result: boolean;}>;
@@ -25,7 +25,7 @@ export interface ZebraPrinterPlugin {
 export interface Printer {
   id: string;    // Unique identifier (e.g., Bluetooth address)
   name: string;  // Friendly name of the printer
-
+  zpl: string;
   address: string;
   bondState: string;
   type: string;

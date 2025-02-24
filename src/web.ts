@@ -7,9 +7,9 @@ export class ZebraPrinterWeb extends WebPlugin implements ZebraPrinterPlugin {
     throw new Error('Printer discovery not supported on the web');
   }
 
-  async print(options: { zpl: string; printerId: string }): Promise<void> {
+  async print(options: { type: string; id: string; zpl:string; address?: string; port?: string; action?: string; text: string, mmFeedPaper?:String, useEscPosAsterik?: boolean, initializeBeforeSend?: boolean, sendDelay?: string; chunkSize?: string}): Promise<void> {
     console.log('ZPL Code (web mock):', options.zpl);
-    console.log('Printer ID:', options.printerId);
+    console.log('Printer ID:', options.id);
   }
 
   async rejectTest(): Promise<void> {
