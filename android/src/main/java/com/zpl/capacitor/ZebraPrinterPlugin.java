@@ -49,6 +49,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
+import android.Manifest;
+import android.app.PendingIntent; // Import added
+import android.content.BroadcastReceiver; // Import added
+import android.content.Intent; // Import added
+import android.content.IntentFilter; // Import added
+import android.hardware.usb.UsbDevice; // Import added
+import android.hardware.usb.UsbManager; // Import added
 
 @CapacitorPlugin(
         name = "ZebraPrinter",
@@ -535,35 +542,68 @@ public class ZebraPrinterPlugin extends Plugin {
         }).start();
     }
 
+     // Define this constant at the class level
+     private static final String ACTION_USB_PERMISSION = "com.zpl.capacitor.USB_PERMISSION";
+
     // Add this new method to ZebraPrinterPlugin.java
     public void printUSB(JSONObject data, PluginCall call) {
         String zpl = data.optString("zpl", "^XA^FO20,20^A0N,25,25^FDMissing ZPL Commands!^FS^XZ");
-        String printerId = data.optString("id", ""); // This should be the device name or path from discovery
+        // IMPORTANT: 'id' MUST be the device path obtained from UsbDiscoverer
+        // e.g., "/dev/bus/usb/001/002"
+        String printerId = data.optString("id", "");
 
         if (printerId.isEmpty()) {
-            call.reject("Missing printerId (USB device name/path)");
+            call.reject("Missing printerId (USB device path required)");
             return;
         }
 
         Context context = getContext();
-        android.hardware.usb.UsbManager usbManager = (android.hardware.usb.UsbManager) context.getSystemService(Context.USB_SERVICE);
+        UsbManager usbManager = (UsbManager) context.getSystemService(Context.USB_SERVICE);
 
-        // --- USB Permission Handling Placeholder ---
-        // TODO: Implement USB permission check and request logic here.
-        // You'll need to:
-        // 1. Find the UsbDevice based on printerId (device name/path). Use usbManager.getDeviceList() and iterate.
-        // 2. Check if permission is granted using usbManager.hasPermission(usbDevice).
-        // 3. If not granted, request permission using usbManager.requestPermission(usbDevice, pendingIntent).
-        // 4. Handle the permission result (likely via a BroadcastReceiver registered in AndroidManifest.xml and dynamically in the plugin).
-        // For now, we assume permission is granted. This WILL FAIL without proper permission handling.
-        // --- End Placeholder ---
+        if (usbManager == null) {
+            call.reject("USB Manager not available", "COD011"); // New code for USB system error
+            return;
+        }
 
+        // Find the UsbDevice object using the device path (printerId)
+        UsbDevice usbDevice = null;
+        for (UsbDevice device : usbManager.getDeviceList().values()) {
+            if (printerId.equals(device.getDeviceName())) {
+                usbDevice = device;
+                break;
+            }
+        }
+
+        if (usbDevice == null) {
+            call.reject("USB device not found for path: " + printerId, "COD012"); // New code for device not found
+            return;
+        }
+
+        // *** CHECK for permission ***
+        if (!usbManager.hasPermission(usbDevice)) {
+            // Permission is NOT granted. Reject the call.
+            // Inform the user they need to trigger the permission request flow separately.
+             call.reject("USB permission not granted for device: " + printerId +
+                             ". Please ensure permission is requested and granted before printing.",
+                     "COD010"); // Specific permission error code
+             // --- Optional: Initiate Permission Request ---
+             // You *could* initiate the request here, but the print call would still fail
+             // because the request is asynchronous. It's better practice to separate request/print.
+             // Example of initiating request (requires receiver setup):
+             // PendingIntent permissionIntent = PendingIntent.getBroadcast(context, 0, new Intent(ACTION_USB_PERMISSION), PendingIntent.FLAG_IMMUTABLE);
+             // usbManager.requestPermission(usbDevice, permissionIntent);
+             // ---
+            return; // Stop execution since permission is missing
+        }
+
+        // *** Permission IS granted, proceed with printing ***
+        final UsbDevice finalUsbDevice = usbDevice; // Need final variable for thread
         new Thread(() -> {
             Connection connection = null;
             try {
-                // Use the Zebra SDK's UsbConnection
-                // The printerId from discovery (ADDRESS) should correspond to the device path needed here.
-                connection = new com.zebra.sdk.comm.UsbConnection(usbManager, printerId);
+                // Use the Zebra SDK's UsbConnection with the UsbManager and UsbDevice
+                // ** Using the constructor with UsbDevice is generally more reliable **
+                connection = new com.zebra.sdk.comm.UsbConnection(usbManager, finalUsbDevice);
 
                 // Open the connection
                 connection.open();
@@ -571,21 +611,16 @@ public class ZebraPrinterPlugin extends Plugin {
                 // Send the data
                 connection.write(zpl.getBytes());
 
-                // Optional: Add a small delay if needed, similar to BTLe
+                // Optional: Add a small delay if needed
                 // Thread.sleep(500);
 
-                call.resolve();
+                call.resolve(); // Success
             } catch (ConnectionException e) {
                 // Handle communications error
-                String errMsg = e.getMessage();
-                if (errMsg != null && errMsg.contains("permission")) {
-                     call.reject("Print failed on USB: Permission denied. Please ensure USB permission is granted.", "COD010"); // Specific permission error
-                } else {
-                    call.reject("Print failed on USB (Connection): " + errMsg, "COD007"); // Use a new error code
-                }
+                 call.reject("Print failed on USB (Connection): " + e.getMessage(), "COD007");
             } catch (Exception e) {
                 // Handle other potential errors
-                call.reject("Print failed on USB: " + e.getMessage(), "COD008"); // Use another new error code
+                call.reject("Print failed on USB: " + e.getMessage(), "COD008");
             } finally {
                 // Ensure the connection is closed
                 if (connection != null) {
