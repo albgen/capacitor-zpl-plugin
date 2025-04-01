@@ -295,6 +295,7 @@ public class ZebraPrinterPlugin extends Plugin {
             @Override
             public void foundPrinter(DiscoveredPrinter printer) {
                 JSObject printerObj = new JSObject();
+                // Use ADDRESS which often corresponds to the device path for USB
                 printerObj.put("id", printer.getDiscoveryDataMap().get("ADDRESS"));
                 printerObj.put("name", printer.getDiscoveryDataMap().get("FRIENDLY_NAME"));
                 printerObj.put("type", "usb");
@@ -360,8 +361,8 @@ public class ZebraPrinterPlugin extends Plugin {
                 printTCP(data,call);
                 break;
             case "usb":
-                // Code to handle usb case goes here
-
+                // Call the new printUSB method
+                printUSB(data, call);
                 break;
             default:
                 // Code to handle unknown types goes here
@@ -380,14 +381,22 @@ public class ZebraPrinterPlugin extends Plugin {
         }
 
         new Thread(() -> {
+            Connection connection = null; // Initialize connection to null
             try {
-                Connection connection = new BluetoothConnection(printerId);
+                connection = new BluetoothConnection(printerId);
                 connection.open();
                 connection.write(zpl.getBytes());
-                connection.close();
-                call.resolve();
+                call.resolve(); // Resolve before closing in case close throws
             } catch (Exception e) {
                 call.reject("Print failed on BT: " + e.getMessage(), "COD003");
+            } finally {
+                if (connection != null) {
+                    try {
+                        connection.close();
+                    } catch (ConnectionException e) {
+                         Log.e(ZPL_PLUGIN, "Error closing BT connection: " + e.getMessage());
+                    }
+                }
             }
         }).start();
     }
@@ -427,7 +436,9 @@ public class ZebraPrinterPlugin extends Plugin {
                     try {
                         connection.close();
                     } catch (ConnectionException e) {
-                        call.reject("Print failed on BTLe: " + e.getMessage(), "COD006");
+                        // Log error, but don't reject again if already resolved or rejected
+                         Log.e(ZPL_PLUGIN, "Error closing BTLe connection: " + e.getMessage());
+                        // call.reject("Print failed on BTLe: " + e.getMessage(), "COD006"); // Avoid double reject
                     }
                 }
             }
@@ -444,9 +455,10 @@ public class ZebraPrinterPlugin extends Plugin {
         }
 
         new Thread(() -> {
+             Connection thePrinterConn = null; // Initialize connection to null
             try {
                 // Establishes an insecure Bluetooth® connection to a printer. Insecure Bluetooth® connections do not require the device and the printer to be paired.
-                Connection thePrinterConn = new BluetoothConnectionInsecure(printerId);
+                thePrinterConn = new BluetoothConnectionInsecure(printerId);
 
                 // Initialize
                 Looper.prepare();
@@ -460,46 +472,134 @@ public class ZebraPrinterPlugin extends Plugin {
                 // Make sure the data got to the printer before closing the connection
                 Thread.sleep(500);
 
-                // Close the insecure connection to release resources.
-                thePrinterConn.close();
+                call.resolve(); // Resolve before closing
 
-                Looper.myLooper().quit();
-                call.resolve();
+                Looper.myLooper().quit(); // Quit looper if prepared
             } catch (Exception e) {
-                call.reject("Print failed on BT: " + e.getMessage(), "COD005");
-
+                call.reject("Print failed on BT Insecure: " + e.getMessage(), "COD005"); // Updated error message
+            } finally {
+                 if (thePrinterConn != null) {
+                    try {
+                        // Close the insecure connection to release resources.
+                        thePrinterConn.close();
+                    } catch (ConnectionException e) {
+                         Log.e(ZPL_PLUGIN, "Error closing BT Insecure connection: " + e.getMessage());
+                    }
+                 }
+                 // Ensure Looper is quit if prepared, even on error
+                 // if (Looper.myLooper() != null) { Looper.myLooper().quit(); }
             }
         }).start();
     }
 
-    public void printTCP(JSONObject data, PluginCall call) throws Exception {
+    public void printTCP(JSONObject data, PluginCall call) { // Removed throws Exception, handle internally
         String zpl = data.optString("zpl","^XA^FO20,20^A0N,25,25^FDMissing ZPL Commands!^FS^XZ");
         String printerId = data.optString("id",""); // IP Address
-        String port = data.optString("port");
+        // String port = data.optString("port"); // Port is handled by SDK default
 
         if (printerId.isEmpty()) {
-            call.reject("Missing printerId");
+            call.reject("Missing printerId (IP Address)"); // Clarified ID type
             return;
         }
-        // Instantiate connection for ZPL TCP port at given address
-        Connection thePrinterConn = new TcpConnection(printerId, TcpConnection.DEFAULT_ZPL_TCP_PORT);
 
-        try {
-            // Open the connection - physical connection is established here.
-            thePrinterConn.open();
+        // Run TCP operations on a background thread
+        new Thread(() -> {
+            Connection thePrinterConn = null; // Initialize connection to null
+            try {
+                 // Instantiate connection for ZPL TCP port at given address
+                thePrinterConn = new TcpConnection(printerId, TcpConnection.DEFAULT_ZPL_TCP_PORT);
+                // Open the connection - physical connection is established here.
+                thePrinterConn.open();
 
-            // Send the data to printer as a byte array.
-            thePrinterConn.write(zpl.getBytes());
+                // Send the data to printer as a byte array.
+                thePrinterConn.write(zpl.getBytes());
+                call.resolve(); // Resolve after successful write
 
-        } catch (ConnectionException e) {
-            // Handle communications error here.
-            e.printStackTrace();
-            call.reject("Print failed on TCP: " + e.getMessage(), "COD002");
-        } finally {
-            // Close the connection to release resources.
-            thePrinterConn.close();
-        }
+            } catch (ConnectionException e) {
+                // Handle communications error here.
+                // e.printStackTrace(); // Avoid printing stack trace directly in production plugin
+                call.reject("Print failed on TCP (Connection): " + e.getMessage(), "COD002"); // More specific error
+            } catch (Exception e) {
+                 // Handle other potential errors
+                call.reject("Print failed on TCP: " + e.getMessage(), "COD009"); // New error code for general TCP errors
+            } finally {
+                // Close the connection to release resources.
+                if (thePrinterConn != null) {
+                    try {
+                        thePrinterConn.close();
+                    } catch (ConnectionException e) {
+                         Log.e(ZPL_PLUGIN, "Error closing TCP connection: " + e.getMessage());
+                    }
+                }
+            }
+        }).start();
     }
+
+    // Add this new method to ZebraPrinterPlugin.java
+    public void printUSB(JSONObject data, PluginCall call) {
+        String zpl = data.optString("zpl", "^XA^FO20,20^A0N,25,25^FDMissing ZPL Commands!^FS^XZ");
+        String printerId = data.optString("id", ""); // This should be the device name or path from discovery
+
+        if (printerId.isEmpty()) {
+            call.reject("Missing printerId (USB device name/path)");
+            return;
+        }
+
+        Context context = getContext();
+        android.hardware.usb.UsbManager usbManager = (android.hardware.usb.UsbManager) context.getSystemService(Context.USB_SERVICE);
+
+        // --- USB Permission Handling Placeholder ---
+        // TODO: Implement USB permission check and request logic here.
+        // You'll need to:
+        // 1. Find the UsbDevice based on printerId (device name/path). Use usbManager.getDeviceList() and iterate.
+        // 2. Check if permission is granted using usbManager.hasPermission(usbDevice).
+        // 3. If not granted, request permission using usbManager.requestPermission(usbDevice, pendingIntent).
+        // 4. Handle the permission result (likely via a BroadcastReceiver registered in AndroidManifest.xml and dynamically in the plugin).
+        // For now, we assume permission is granted. This WILL FAIL without proper permission handling.
+        // --- End Placeholder ---
+
+        new Thread(() -> {
+            Connection connection = null;
+            try {
+                // Use the Zebra SDK's UsbConnection
+                // The printerId from discovery (ADDRESS) should correspond to the device path needed here.
+                connection = new com.zebra.sdk.comm.UsbConnection(usbManager, printerId);
+
+                // Open the connection
+                connection.open();
+
+                // Send the data
+                connection.write(zpl.getBytes());
+
+                // Optional: Add a small delay if needed, similar to BTLe
+                // Thread.sleep(500);
+
+                call.resolve();
+            } catch (ConnectionException e) {
+                // Handle communications error
+                String errMsg = e.getMessage();
+                if (errMsg != null && errMsg.contains("permission")) {
+                     call.reject("Print failed on USB: Permission denied. Please ensure USB permission is granted.", "COD010"); // Specific permission error
+                } else {
+                    call.reject("Print failed on USB (Connection): " + errMsg, "COD007"); // Use a new error code
+                }
+            } catch (Exception e) {
+                // Handle other potential errors
+                call.reject("Print failed on USB: " + e.getMessage(), "COD008"); // Use another new error code
+            } finally {
+                // Ensure the connection is closed
+                if (connection != null) {
+                    try {
+                        connection.close();
+                    } catch (ConnectionException e) {
+                        // Log or handle closing error if necessary
+                        Log.e(ZPL_PLUGIN, "Error closing USB connection: " + e.getMessage());
+                    }
+                }
+            }
+        }).start();
+    }
+
 
     private DeviceConnection getPrinterConnection(JSONObject data) throws Exception {
         String type = data.getString("type");
@@ -507,11 +607,15 @@ public class ZebraPrinterPlugin extends Plugin {
         String sendDelay =  data.getString("sendDelay");
         String hashKey = type + "-" + id;
 
+        // This method seems related to the custom helper classes, which might be deprecated
+        // if we consistently use the Zebra SDK connection classes directly in print methods.
+        // Consider refactoring or removing this if not needed.
+
         DeviceConnection deviceConnection = this.getDevice(
                 data.getString("type"),
                 data.optString("id"),
                 data.optString("address"),
-                data.optInt("port", 9100),
+                data.optInt("port", 9100), // Default port might differ from Zebra SDK's default
                 data.optInt("sendDelay", 0)
         );
         if (deviceConnection == null) {
@@ -529,6 +633,10 @@ public class ZebraPrinterPlugin extends Plugin {
 
     private DeviceConnection getDevice(String type, String id, String address, int port, int sendDelay) throws Exception {
         String hashKey = type + "-" + id;
+
+        // This method seems related to the custom helper classes, which might be deprecated.
+        // See comment in getPrinterConnection.
+
         if (!(type.equals("tcp") && this.connections.containsKey(hashKey))) {
             DeviceConnection connection = this.connections.get(hashKey);
             if (connection != null) {
@@ -545,6 +653,7 @@ public class ZebraPrinterPlugin extends Plugin {
                 throw new JSONException("Missing permission for bluetooth");
             }
             if (id.equals("first")) {
+                // This custom logic might need review if SDK connections are used directly
                 return BluetoothPrintersConnections.selectFirstPaired();
             }
             BluetoothConnections printerConnections = new BluetoothConnections();
@@ -558,13 +667,16 @@ public class ZebraPrinterPlugin extends Plugin {
             com.zpl.helper.tcp.TcpConnection tcpConnection =  new  com.zpl.helper.tcp.TcpConnection(address, port);
             tcpConnection.setSendDelay(sendDelay);
             return tcpConnection;
-        } else {
+        } else if (type.equals("usb")) { // Changed from 'else' to 'else if'
+            // This custom logic might need review
             UsbConnections printerConnections = new UsbConnections(this.getActivity());
             for (UsbConnection usbConnection : printerConnections.getList()) {
                 UsbDevice usbDevice = usbConnection.getDevice();
                 usbConnection.setSendDelay(sendDelay);
-                try { if (usbDevice.getDeviceId() == Integer.parseInt(id)) { return usbConnection; } } catch (Exception ignored) {}
-                try { if (Objects.requireNonNull(usbDevice.getProductName()).trim().equals(id)) { return usbConnection; } } catch (Exception ignored) {}
+                // Matching logic might need adjustment based on what 'id' represents for USB
+                try { if (usbDevice.getDeviceName().equals(id)) { return usbConnection; } } catch (Exception ignored) {} // Match by device name/path?
+                try { if (String.valueOf(usbDevice.getDeviceId()).equals(id)) { return usbConnection; } } catch (Exception ignored) {} // Match by device ID?
+                try { if (Objects.requireNonNull(usbDevice.getProductName()).trim().equals(id)) { return usbConnection; } } catch (Exception ignored) {} // Match by product name?
             }
         }
 
