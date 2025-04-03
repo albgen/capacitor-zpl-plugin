@@ -13,6 +13,7 @@
     "android/build.gradle",
     "dist/",
     "ios/Plugin/",
+    "scripts/",
     "CreateCapacitorPlugin.podspec"
   ],
   "author": "albgen",
