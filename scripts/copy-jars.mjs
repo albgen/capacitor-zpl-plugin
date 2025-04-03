@@ -1,6 +1,6 @@
-const fs = require('fs');
-const path = require('path');
-const chalk = require('chalk');
+import fs from 'fs';
+import path from 'path';
+import chalk from 'chalk';
 
 const logPrefix = chalk.blue('[Copy-Jars]');
 
@@ -33,3 +33,5 @@ if (fs.existsSync(pluginLibs)) {
 } else {
   console.log(`${logPrefix} Plugin libs folder not found: ${pluginLibs}`);
 }
+
+export default {};
