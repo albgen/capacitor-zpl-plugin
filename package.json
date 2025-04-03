@@ -1,6 +1,6 @@
 {
   "name": "@albgen/capacitor-zpl-plugin",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "A plugin which facilitate the communication with ZPL Printers.",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
@@ -72,10 +72,10 @@
   },
   "capacitor": {
     "android": {
-        "src": "android",
-        "hooks": {
-          "capacitor:sync": "node scripts/copy-jars.js"
-        }
+      "src": "android",
+      "hooks": {
+        "capacitor:sync": "node scripts/copy-jars.js"
+      }
     },
     "ios": {
       "src": "ios"
