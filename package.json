@@ -71,11 +71,14 @@
     "extends": "@ionic/eslint-config/recommended"
   },
   "capacitor": {
+    "android": {
+        "src": "android",
+        "hooks": {
+          "capacitor:sync": "node scripts/copy-jars.js"
+        }
+    },
     "ios": {
       "src": "ios"
-    },
-    "android": {
-      "src": "android"
     }
   },
   "homepage": "https://github.com/albgen/capacitor-zpl-plugin.git#readme"
