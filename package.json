@@ -32,7 +32,7 @@
   ],
   "scripts": {
     "capacitor:sync:before": "echo sync before capacitor:sync:before",
-    "capacitor:sync:after": "node scripts/copy-jars.cjs",
+    "capacitor:sync:after": "node scripts/copy-jars.mjs",
     "verify": "npm run verify:ios && npm run verify:android && npm run verify:web",
     "verify:ios": "cd ios && pod install && xcodebuild -workspace Plugin.xcworkspace -scheme Plugin -destination generic/platform=iOS && cd ..",
     "verify:android": "cd android && ./gradlew clean build test && cd ..",
