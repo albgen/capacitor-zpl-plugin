@@ -1,6 +1,6 @@
 {
   "name": "@albgen/capacitor-zpl-plugin",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "description": "A plugin which facilitate the communication with ZPL Printers.",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
